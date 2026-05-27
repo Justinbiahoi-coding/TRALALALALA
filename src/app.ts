@@ -1,3 +1,4 @@
+import { initDashboardHub, renderDashboard } from "./ui/dashboard.js";
 import {
   authClientState,
   createOnlineRoom,
@@ -509,15 +510,16 @@ function renderOnlineEntryScreen() {
           <span>LỮ KHÁCH BẠN CỜ</span>
           <h1>Online Room</h1>
           <p>Tạo phòng, mời bạn bè bằng mã phòng, rồi bắt đầu khi mọi người sẵn sàng.</p>
-          <div class="auth-profile-pill">
-            <span>Đang đăng nhập: <strong>${authClientState.user?.displayName ?? authClientState.user?.username}</strong></span>
-            <button
-              type="button"
-              onclick="event.preventDefault(); event.stopPropagation(); window.logoutFromAuthScreen()"
-            >
-              Đăng xuất
-            </button>
-          </div>
+          <p class="online-entry-card__welcome">
+            Xin chào, <strong>${authClientState.user?.displayName ?? authClientState.user?.username ?? "Nhà Lữ Hành"}</strong>
+          </p>
+          <button
+            type="button"
+            class="online-entry-card__back"
+            onclick="event.stopPropagation(); window.gotoDashboard()"
+          >
+            ← Quay lại trang chủ
+          </button>
         </div>
 
         <div class="online-entry-grid">
@@ -4615,22 +4617,81 @@ function renderSidePlayerSpacers(count: number) {
   }).join("");
 }
 
-function renderGameShell() {
-  if (!authClientState.isReady) {
-    return `
-      <main class="auth-screen">
-        <section class="auth-card auth-card--loading">
-          <h1>Đang kiểm tra đăng nhập...</h1>
-        </section>
-      </main>
-    `;
+
+export type AppScreen = "dashboard" | "lobby" | "game";
+export let currentAppScreen: AppScreen = "dashboard";
+
+(window as any).gotoOnlineLobby = () => {
+  if (!authClientState.user) {
+    (window as any).focusHubAuthPanel();
+    setAuthStatus("Đăng nhập hoặc đăng ký để bắt đầu hành trình.");
+    return;
   }
 
-  if (!authClientState.user) {
-    return renderAuthScreen();
+  currentAppScreen = "lobby";
+  (window as any).rerenderGameShell();
+};
+
+(window as any).gotoDashboard = () => {
+  currentAppScreen = "dashboard";
+  (window as any).rerenderGameShell();
+};
+
+(window as any).switchHubAuthTab = (tab: "login" | "register") => {
+  document.querySelectorAll("[data-hub-auth-tab]").forEach((element) => {
+    element.classList.toggle(
+      "is-active",
+      (element as HTMLElement).dataset.hubAuthTab === tab
+    );
+  });
+
+  document.querySelectorAll("[data-hub-auth-panel]").forEach((element) => {
+    element.classList.toggle(
+      "is-active",
+      (element as HTMLElement).dataset.hubAuthPanel === tab
+    );
+  });
+};
+
+(window as any).focusHubAuthPanel = () => {
+  const authPanel = document.getElementById("hub-auth");
+
+  if (!authPanel) {
+    currentAppScreen = "dashboard";
+    rerenderGameShell();
+
+    window.requestAnimationFrame(() => {
+      (window as any).focusHubAuthPanel();
+    });
+    return;
+  }
+
+  authPanel.scrollIntoView({ behavior: "smooth", block: "start" });
+  authPanel.classList.remove("hub-auth--pulse");
+
+  window.requestAnimationFrame(() => {
+    authPanel.classList.add("hub-auth--pulse");
+  });
+
+  const firstInput = authPanel.querySelector("input") as HTMLInputElement | null;
+  firstInput?.focus();
+};
+
+(window as any).startOfflineGame = () => {
+  alert("Chế độ chơi offline (Bot) đang được phát triển!");
+};
+
+function renderGameShell() {
+  if (!authClientState.isReady) {
+    return renderDashboard(true);
   }
 
   if (!isOnlineRoomActive()) {
+    if (!authClientState.user || currentAppScreen === "dashboard") {
+      currentAppScreen = "dashboard";
+      return renderDashboard();
+    }
+
     return renderOnlineEntryScreen();
   }
 
@@ -4662,8 +4723,10 @@ function renderGameShell() {
   `;
 }
 
+(window as any).rerenderGameShell = rerenderGameShell;
 function rerenderGameShell() {
   app.innerHTML = renderGameShell();
+  initDashboardHub();
 }
 
 let lastOnlineRenderSignature = "";
@@ -4962,11 +5025,15 @@ initOnlineClient(() => {
 
 
 function setAuthStatus(message: string, isError = false) {
-  const statusElement = document.querySelector("#auth-status") as HTMLElement | null;
+  const statusElement =
+    (document.querySelector("#hub-auth-status") as HTMLElement | null) ??
+    (document.querySelector("#auth-status") as HTMLElement | null);
 
   if (!statusElement) return;
 
   statusElement.textContent = message;
+  statusElement.classList.toggle("hub-auth__status--error", isError);
+  statusElement.classList.toggle("hub-auth__status--success", Boolean(message) && !isError);
   statusElement.classList.toggle("auth-card__status--error", isError);
   statusElement.classList.toggle("auth-card__status--success", Boolean(message) && !isError);
 }
@@ -4977,14 +5044,14 @@ function setupAuthFormDelegation() {
 
     if (!form) return;
 
-    if (form.id === "auth-login-form") {
+    if (form.id === "auth-login-form" || form.id === "hub-auth-login-form") {
       event.preventDefault();
       event.stopPropagation();
       (window as any).loginFromAuthScreen();
       return;
     }
 
-    if (form.id === "auth-register-form") {
+    if (form.id === "auth-register-form" || form.id === "hub-auth-register-form") {
       event.preventDefault();
       event.stopPropagation();
       (window as any).registerFromAuthScreen();
@@ -4994,8 +5061,12 @@ function setupAuthFormDelegation() {
 
 
 (window as any).loginFromAuthScreen = async () => {
-  const usernameInput = document.querySelector("#auth-login-username") as HTMLInputElement | null;
-  const passwordInput = document.querySelector("#auth-login-password") as HTMLInputElement | null;
+  const usernameInput =
+    (document.querySelector("#hub-auth-login-username") as HTMLInputElement | null) ??
+    (document.querySelector("#auth-login-username") as HTMLInputElement | null);
+  const passwordInput =
+    (document.querySelector("#hub-auth-login-password") as HTMLInputElement | null) ??
+    (document.querySelector("#auth-login-password") as HTMLInputElement | null);
 
   setAuthStatus("Đang đăng nhập...");
 
@@ -5015,9 +5086,15 @@ function setupAuthFormDelegation() {
 };
 
 (window as any).registerFromAuthScreen = async () => {
-  const displayNameInput = document.querySelector("#auth-register-display-name") as HTMLInputElement | null;
-  const usernameInput = document.querySelector("#auth-register-username") as HTMLInputElement | null;
-  const passwordInput = document.querySelector("#auth-register-password") as HTMLInputElement | null;
+  const displayNameInput =
+    (document.querySelector("#hub-auth-register-display-name") as HTMLInputElement | null) ??
+    (document.querySelector("#auth-register-display-name") as HTMLInputElement | null);
+  const usernameInput =
+    (document.querySelector("#hub-auth-register-username") as HTMLInputElement | null) ??
+    (document.querySelector("#auth-register-username") as HTMLInputElement | null);
+  const passwordInput =
+    (document.querySelector("#hub-auth-register-password") as HTMLInputElement | null) ??
+    (document.querySelector("#auth-register-password") as HTMLInputElement | null);
 
   setAuthStatus("Đang tạo tài khoản...");
 
@@ -5043,6 +5120,7 @@ function setupAuthFormDelegation() {
   onlineClientState.roomId = null;
   onlineClientState.playerId = null;
   onlineClientState.roomState = null;
+  currentAppScreen = "dashboard";
 
   rerenderGameShell();
 };

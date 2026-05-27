@@ -7,9 +7,12 @@
     "doc": "docs"
   },
   "scripts": {
-  "dev": "vite",
-  "build": "tsc && lessc src/styles/client.less build/client.css && vite build"
-},
+    "dev": "vite",
+    "dev:tsc": "tsc --watch",
+    "dev:css": "npx chokidar-cli \"src/styles/**/*.less\" -c \"npx lessc src/styles/client.less build/client.css\"",
+    "dev:serve": "npx serve . -l 5174",
+    "build": "tsc && npx lessc src/styles/client.less build/client.css && vite build"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/TanKhoiTV/compthink-2026.git"

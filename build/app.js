@@ -7,6 +7,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
+import { initDashboardHub, renderDashboard } from "./ui/dashboard.js";
 import { authClientState, createOnlineRoom, initOnlineClient, clearSavedOnlineSession, getSavedOnlineSession, joinOnlineRoom, leaveOnlineRoom, loginAccount, logoutAccount, onlineClientState, reconnectOnlineRoom, registerAccount, selectOnlineDraftCard, sendDiscardCard, sendPayDebt, sendPlaceCard, sendReturnBoardCard, setOnlineReady, startOnlineGame, } from "./online/socketClient.js";
 import { phase1Cards } from "./data/cards.phase1.js";
 import { mapGameCardToTravelCard } from "./data/cardMapper.js";
@@ -375,7 +376,7 @@ function renderAuthScreen() {
   `;
 }
 function renderOnlineEntryScreen() {
-    var _a, _b, _c, _d, _e, _f, _g;
+    var _a, _b, _c, _d, _e, _f, _g, _h;
     const savedSession = getSavedOnlineSession();
     return `
     <main class="online-entry-screen">
@@ -384,15 +385,16 @@ function renderOnlineEntryScreen() {
           <span>LỮ KHÁCH BẠN CỜ</span>
           <h1>Online Room</h1>
           <p>Tạo phòng, mời bạn bè bằng mã phòng, rồi bắt đầu khi mọi người sẵn sàng.</p>
-          <div class="auth-profile-pill">
-            <span>Đang đăng nhập: <strong>${(_b = (_a = authClientState.user) === null || _a === void 0 ? void 0 : _a.displayName) !== null && _b !== void 0 ? _b : (_c = authClientState.user) === null || _c === void 0 ? void 0 : _c.username}</strong></span>
-            <button
-              type="button"
-              onclick="event.preventDefault(); event.stopPropagation(); window.logoutFromAuthScreen()"
-            >
-              Đăng xuất
-            </button>
-          </div>
+          <p class="online-entry-card__welcome">
+            Xin chào, <strong>${(_d = (_b = (_a = authClientState.user) === null || _a === void 0 ? void 0 : _a.displayName) !== null && _b !== void 0 ? _b : (_c = authClientState.user) === null || _c === void 0 ? void 0 : _c.username) !== null && _d !== void 0 ? _d : "Nhà Lữ Hành"}</strong>
+          </p>
+          <button
+            type="button"
+            class="online-entry-card__back"
+            onclick="event.stopPropagation(); window.gotoDashboard()"
+          >
+            ← Quay lại trang chủ
+          </button>
         </div>
 
         <div class="online-entry-grid">
@@ -400,7 +402,7 @@ function renderOnlineEntryScreen() {
             <h2>Tạo phòng</h2>
             <label>
               Tên của bạn
-              <input id="lobby-create-name" value="${(_e = (_d = authClientState.user) === null || _d === void 0 ? void 0 : _d.displayName) !== null && _e !== void 0 ? _e : "An"}" maxlength="18" />
+              <input id="lobby-create-name" value="${(_f = (_e = authClientState.user) === null || _e === void 0 ? void 0 : _e.displayName) !== null && _f !== void 0 ? _f : "An"}" maxlength="18" />
             </label>
             <button
               type="button"
@@ -414,7 +416,7 @@ function renderOnlineEntryScreen() {
             <h2>Vào phòng</h2>
             <label>
               Tên của bạn
-              <input id="lobby-join-name" value="${(_g = (_f = authClientState.user) === null || _f === void 0 ? void 0 : _f.displayName) !== null && _g !== void 0 ? _g : "Player"}" maxlength="18" />
+              <input id="lobby-join-name" value="${(_h = (_g = authClientState.user) === null || _g === void 0 ? void 0 : _g.displayName) !== null && _h !== void 0 ? _h : "Player"}" maxlength="18" />
             </label>
             <label>
               Room code
@@ -3822,21 +3824,59 @@ function renderSidePlayerSpacers(count) {
         return `<section class="side-player side-player--empty-spacer" aria-hidden="true"></section>`;
     }).join("");
 }
+export let currentAppScreen = "dashboard";
+window.gotoOnlineLobby = () => {
+    if (!authClientState.user) {
+        window.focusHubAuthPanel();
+        setAuthStatus("Đăng nhập hoặc đăng ký để bắt đầu hành trình.");
+        return;
+    }
+    currentAppScreen = "lobby";
+    window.rerenderGameShell();
+};
+window.gotoDashboard = () => {
+    currentAppScreen = "dashboard";
+    window.rerenderGameShell();
+};
+window.switchHubAuthTab = (tab) => {
+    document.querySelectorAll("[data-hub-auth-tab]").forEach((element) => {
+        element.classList.toggle("is-active", element.dataset.hubAuthTab === tab);
+    });
+    document.querySelectorAll("[data-hub-auth-panel]").forEach((element) => {
+        element.classList.toggle("is-active", element.dataset.hubAuthPanel === tab);
+    });
+};
+window.focusHubAuthPanel = () => {
+    const authPanel = document.getElementById("hub-auth");
+    if (!authPanel) {
+        currentAppScreen = "dashboard";
+        rerenderGameShell();
+        window.requestAnimationFrame(() => {
+            window.focusHubAuthPanel();
+        });
+        return;
+    }
+    authPanel.scrollIntoView({ behavior: "smooth", block: "start" });
+    authPanel.classList.remove("hub-auth--pulse");
+    window.requestAnimationFrame(() => {
+        authPanel.classList.add("hub-auth--pulse");
+    });
+    const firstInput = authPanel.querySelector("input");
+    firstInput === null || firstInput === void 0 ? void 0 : firstInput.focus();
+};
+window.startOfflineGame = () => {
+    alert("Chế độ chơi offline (Bot) đang được phát triển!");
+};
 function renderGameShell() {
     var _a;
     if (!authClientState.isReady) {
-        return `
-      <main class="auth-screen">
-        <section class="auth-card auth-card--loading">
-          <h1>Đang kiểm tra đăng nhập...</h1>
-        </section>
-      </main>
-    `;
-    }
-    if (!authClientState.user) {
-        return renderAuthScreen();
+        return renderDashboard(true);
     }
     if (!isOnlineRoomActive()) {
+        if (!authClientState.user || currentAppScreen === "dashboard") {
+            currentAppScreen = "dashboard";
+            return renderDashboard();
+        }
         return renderOnlineEntryScreen();
     }
     if (((_a = onlineClientState.roomState) === null || _a === void 0 ? void 0 : _a.phase) === "lobby") {
@@ -3864,8 +3904,10 @@ function renderGameShell() {
     </div>
   `;
 }
+window.rerenderGameShell = rerenderGameShell;
 function rerenderGameShell() {
     app.innerHTML = renderGameShell();
+    initDashboardHub();
 }
 let lastOnlineRenderSignature = "";
 let lastOnlineAnimationPhase = null;
@@ -4106,10 +4148,13 @@ window.selectDraftCard = selectDraftCard;
 window.selectHandCard = selectHandCard;
 window.clearSelectedHandCard = clearSelectedHandCard;
 function setAuthStatus(message, isError = false) {
-    const statusElement = document.querySelector("#auth-status");
+    var _a;
+    const statusElement = (_a = document.querySelector("#hub-auth-status")) !== null && _a !== void 0 ? _a : document.querySelector("#auth-status");
     if (!statusElement)
         return;
     statusElement.textContent = message;
+    statusElement.classList.toggle("hub-auth__status--error", isError);
+    statusElement.classList.toggle("hub-auth__status--success", Boolean(message) && !isError);
     statusElement.classList.toggle("auth-card__status--error", isError);
     statusElement.classList.toggle("auth-card__status--success", Boolean(message) && !isError);
 }
@@ -4118,13 +4163,13 @@ function setupAuthFormDelegation() {
         const form = event.target;
         if (!form)
             return;
-        if (form.id === "auth-login-form") {
+        if (form.id === "auth-login-form" || form.id === "hub-auth-login-form") {
             event.preventDefault();
             event.stopPropagation();
             window.loginFromAuthScreen();
             return;
         }
-        if (form.id === "auth-register-form") {
+        if (form.id === "auth-register-form" || form.id === "hub-auth-register-form") {
             event.preventDefault();
             event.stopPropagation();
             window.registerFromAuthScreen();
@@ -4132,14 +4177,14 @@ function setupAuthFormDelegation() {
     }, true);
 }
 window.loginFromAuthScreen = () => __awaiter(void 0, void 0, void 0, function* () {
-    var _a, _b;
-    const usernameInput = document.querySelector("#auth-login-username");
-    const passwordInput = document.querySelector("#auth-login-password");
+    var _a, _b, _c, _d;
+    const usernameInput = (_a = document.querySelector("#hub-auth-login-username")) !== null && _a !== void 0 ? _a : document.querySelector("#auth-login-username");
+    const passwordInput = (_b = document.querySelector("#hub-auth-login-password")) !== null && _b !== void 0 ? _b : document.querySelector("#auth-login-password");
     setAuthStatus("Đang đăng nhập...");
     try {
         yield loginAccount({
-            username: (_a = usernameInput === null || usernameInput === void 0 ? void 0 : usernameInput.value.trim()) !== null && _a !== void 0 ? _a : "",
-            password: (_b = passwordInput === null || passwordInput === void 0 ? void 0 : passwordInput.value) !== null && _b !== void 0 ? _b : "",
+            username: (_c = usernameInput === null || usernameInput === void 0 ? void 0 : usernameInput.value.trim()) !== null && _c !== void 0 ? _c : "",
+            password: (_d = passwordInput === null || passwordInput === void 0 ? void 0 : passwordInput.value) !== null && _d !== void 0 ? _d : "",
         });
         setAuthStatus("Đăng nhập thành công.");
         rerenderGameShell();
@@ -4151,16 +4196,16 @@ window.loginFromAuthScreen = () => __awaiter(void 0, void 0, void 0, function* (
     }
 });
 window.registerFromAuthScreen = () => __awaiter(void 0, void 0, void 0, function* () {
-    var _a, _b;
-    const displayNameInput = document.querySelector("#auth-register-display-name");
-    const usernameInput = document.querySelector("#auth-register-username");
-    const passwordInput = document.querySelector("#auth-register-password");
+    var _a, _b, _c, _d, _e;
+    const displayNameInput = (_a = document.querySelector("#hub-auth-register-display-name")) !== null && _a !== void 0 ? _a : document.querySelector("#auth-register-display-name");
+    const usernameInput = (_b = document.querySelector("#hub-auth-register-username")) !== null && _b !== void 0 ? _b : document.querySelector("#auth-register-username");
+    const passwordInput = (_c = document.querySelector("#hub-auth-register-password")) !== null && _c !== void 0 ? _c : document.querySelector("#auth-register-password");
     setAuthStatus("Đang tạo tài khoản...");
     try {
         yield registerAccount({
             displayName: (displayNameInput === null || displayNameInput === void 0 ? void 0 : displayNameInput.value.trim()) || undefined,
-            username: (_a = usernameInput === null || usernameInput === void 0 ? void 0 : usernameInput.value.trim()) !== null && _a !== void 0 ? _a : "",
-            password: (_b = passwordInput === null || passwordInput === void 0 ? void 0 : passwordInput.value) !== null && _b !== void 0 ? _b : "",
+            username: (_d = usernameInput === null || usernameInput === void 0 ? void 0 : usernameInput.value.trim()) !== null && _d !== void 0 ? _d : "",
+            password: (_e = passwordInput === null || passwordInput === void 0 ? void 0 : passwordInput.value) !== null && _e !== void 0 ? _e : "",
         });
         setAuthStatus("Tạo tài khoản thành công.");
         rerenderGameShell();
@@ -4176,6 +4221,7 @@ window.logoutFromAuthScreen = () => {
     onlineClientState.roomId = null;
     onlineClientState.playerId = null;
     onlineClientState.roomState = null;
+    currentAppScreen = "dashboard";
     rerenderGameShell();
 };
 window.createRoomFromLobby = () => {
