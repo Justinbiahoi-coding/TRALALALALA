@@ -1,3 +1,4 @@
+import { renderMapSelectionScreen } from "./ui/mapSelection.js";
 import { initDashboardHub, renderDashboard } from "./ui/dashboard.js";
 import {
   authClientState,
@@ -4618,8 +4619,80 @@ function renderSidePlayerSpacers(count: number) {
 }
 
 
-export type AppScreen = "dashboard" | "lobby" | "game";
+export type AppScreen = "dashboard" | "map_selection" | "lobby" | "game";
 export let currentAppScreen: AppScreen = "dashboard";
+
+// Background smoke video reference (shared between gotoMapSelection and rerenderGameShell)
+let bgSmokeVideo: HTMLVideoElement | null = null;
+
+function transitionToScreen(newScreen: AppScreen) {
+  if (!(document as any).startViewTransition) {
+    currentAppScreen = newScreen;
+    rerenderGameShell();
+    return;
+  }
+  (document as any).startViewTransition(() => {
+    currentAppScreen = newScreen;
+    rerenderGameShell();
+  });
+}
+
+(window as any).gotoMapSelection = () => {
+  if (!authClientState.user) {
+    (window as any).focusHubAuthPanel();
+    setAuthStatus("Đăng nhập hoặc đăng ký để bắt đầu hành trình.");
+    return;
+  }
+
+  // 1. Create overlay video — plays from beginning (smoke effect)
+  const vid = document.createElement("video");
+  vid.src = "./assets/chuyencanh.mp4";
+  vid.muted = true;
+  vid.playsInline = true;
+  vid.style.cssText = [
+    "position:fixed", "inset:0", "width:100%", "height:100%",
+    "object-fit:cover", "z-index:9999", "pointer-events:none",
+    "opacity:0", "transition:opacity 0.4s ease"
+  ].join(";");
+  document.body.appendChild(vid);
+
+  // Fade in the video overlay
+  void vid.play().catch(() => { vid.muted = true; void vid.play(); });
+  requestAnimationFrame(() => { requestAnimationFrame(() => { vid.style.opacity = "1"; }); });
+
+  let transitioned = false;
+
+  vid.addEventListener("timeupdate", () => {
+    // 2. When smoke covers screen (~3.5s), swap to map selection
+    if (!transitioned && vid.currentTime >= 3.5) {
+      transitioned = true;
+      bgSmokeVideo = vid;
+
+      // Remove from body — rerenderGameShell will re-insert it into the screen
+      document.body.removeChild(vid);
+      vid.style.cssText = [
+        "position:absolute", "inset:0", "width:100%", "height:100%",
+        "object-fit:cover", "z-index:0", "pointer-events:none", "opacity:1"
+      ].join(";");
+
+      currentAppScreen = "map_selection";
+      rerenderGameShell();
+
+      // 3. Animate map card columns in — staggered slide from right
+      requestAnimationFrame(() => {
+        const cols = document.querySelectorAll(".map-card-col");
+        cols.forEach((el, i) => {
+          setTimeout(() => el.classList.add("map-card-col--slide-in"), 200 + i * 140);
+        });
+      });
+    }
+
+    // 4. Loop from second 5 to avoid smoke replaying
+    if (vid.duration && vid.currentTime >= vid.duration - 0.5) {
+      vid.currentTime = 5;
+    }
+  });
+};
 
 (window as any).gotoOnlineLobby = () => {
   if (!authClientState.user) {
@@ -4627,14 +4700,17 @@ export let currentAppScreen: AppScreen = "dashboard";
     setAuthStatus("Đăng nhập hoặc đăng ký để bắt đầu hành trình.");
     return;
   }
-
-  currentAppScreen = "lobby";
-  (window as any).rerenderGameShell();
+  transitionToScreen("lobby");
 };
 
 (window as any).gotoDashboard = () => {
-  currentAppScreen = "dashboard";
-  (window as any).rerenderGameShell();
+  // Remove background video cleanly
+  if (bgSmokeVideo) {
+    bgSmokeVideo.pause();
+    bgSmokeVideo.remove();
+    bgSmokeVideo = null;
+  }
+  transitionToScreen("dashboard");
 };
 
 (window as any).switchHubAuthTab = (tab: "login" | "register") => {
@@ -4691,6 +4767,10 @@ function renderGameShell() {
       currentAppScreen = "dashboard";
       return renderDashboard();
     }
+    
+    if (currentAppScreen === "map_selection") {
+      return renderMapSelectionScreen();
+    }
 
     return renderOnlineEntryScreen();
   }
@@ -4727,6 +4807,14 @@ function renderGameShell() {
 function rerenderGameShell() {
   app.innerHTML = renderGameShell();
   initDashboardHub();
+
+  // Re-insert background video into map selection screen if it exists
+  if (currentAppScreen === "map_selection" && bgSmokeVideo) {
+    const screen = document.querySelector(".map-selection-screen");
+    if (screen && screen.firstChild) {
+      screen.insertBefore(bgSmokeVideo, screen.firstChild);
+    }
+  }
 }
 
 let lastOnlineRenderSignature = "";

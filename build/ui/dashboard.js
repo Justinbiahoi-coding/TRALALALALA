@@ -318,7 +318,7 @@ export function renderDashboard(isLoading = false) {
               <p class="hero-eyebrow">GAME THẺ BÀI CHIẾN LƯỢC</p>
               <h1 class="hero-title">Khám Phá<br/>Việt Nam</h1>
               <p class="hero-sub">Xây dựng hành trình, thu thập địa điểm,<br/>trở thành nhà lữ hành xuất sắc nhất.</p>
-              <button class="btn-play" onclick="window.gotoOnlineLobby()">
+              <button class="btn-play" onclick="window.gotoMapSelection()">
                 ▶ &nbsp;BẮT ĐẦU HÀNH TRÌNH
               </button>
               ${!isLoggedIn
